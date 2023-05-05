@@ -303,7 +303,7 @@ DEFAULT_PGM_STARTUP_PWR 				EQU 9 	; 1=0.031 2=0.047 3=0.063 4=0.094 5=0.125 6=0
 DEFAULT_PGM_COMM_TIMING				EQU 3 	; 1=Low 		2=MediumLow 	3=Medium 		4=MediumHigh 	5=High
 DEFAULT_PGM_DEMAG_COMP 				EQU 2 	; 1=Disabled	2=Low		3=High
 DEFAULT_PGM_DIRECTION				EQU 1 	; 1=Normal 	2=Reversed	3=Bidir		4=Bidir rev
-DEFAULT_PGM_BEEP_STRENGTH			EQU 40	; Beep strength
+DEFAULT_PGM_BEEP_STRENGTH			EQU 250	; Beep strength
 DEFAULT_PGM_BEACON_STRENGTH			EQU 80	; Beacon strength
 DEFAULT_PGM_BEACON_DELAY				EQU 4 	; 1=1m		2=2m			3=5m			4=10m		5=Infinite
 
@@ -848,36 +848,36 @@ t1_int_not_bidir:
 	mov	Temp3, #0FFh
 	mov	Temp4, #0FFh
 
-	; Boost pwm during direct start
-	mov	A, Flags1
-	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
-	jz	t1_int_startup_boosted
-
-	jb	Flags1.MOTOR_STARTED, t1_int_startup_boosted	; Do not boost when changing direction in bidirectional mode
-
-	mov	A, Pwm_Limit_Beg				; Set 25% of max startup power as minimum power
-	rlc	A
-	mov	Temp2, A
-	mov	A, Temp4
-	jnz	t1_int_startup_boost_stall
-
-	clr	C
-	mov	A, Temp2
-	subb	A, Temp3
-	jc	t1_int_startup_boost_stall
-
-	mov	A, Temp2
-	mov	Temp3, A
-
-t1_int_startup_boost_stall:
-	mov	A, Stall_Cnt					; Add an extra power boost during start
-	swap	A
-	rlc	A
-	add	A, Temp3
-	mov	Temp3, A
-	mov	A, Temp4
-	addc	A, #0
-	mov	Temp4, A
+;	; Boost pwm during direct start
+;	mov	A, Flags1
+;	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
+;	jz	t1_int_startup_boosted
+;
+;	jb	Flags1.MOTOR_STARTED, t1_int_startup_boosted	; Do not boost when changing direction in bidirectional mode
+;
+;	mov	A, Pwm_Limit_Beg				; Set 25% of max startup power as minimum power
+;	rlc	A
+;	mov	Temp2, A
+;	mov	A, Temp4
+;	jnz	t1_int_startup_boost_stall
+;
+;	clr	C
+;	mov	A, Temp2
+;	subb	A, Temp3
+;	jc	t1_int_startup_boost_stall
+;
+;	mov	A, Temp2
+;	mov	Temp3, A
+;
+;t1_int_startup_boost_stall:
+;	mov	A, Stall_Cnt					; Add an extra power boost during start
+;	swap	A
+;	rlc	A
+;	add	A, Temp3
+;	mov	Temp3, A
+;	mov	A, Temp4
+;	addc	A, #0
+;	mov	Temp4, A
 
 t1_int_startup_boosted:
 	; Set 8bit value
@@ -1421,30 +1421,30 @@ int0_int_pulse_ready:
 
 	mov	Rcp_Stop_Cnt, #0				; Reset rcp stop counter
 
-	; Set pwm limit
-	clr	C
-	mov	A, Pwm_Limit					; Limit to the smallest
-	mov	Temp5, A						; Store limit in Temp5
-	subb	A, Pwm_Limit_By_Rpm
-	jc	($+4)
-
-	mov	Temp5, Pwm_Limit_By_Rpm			
-
-	; Check against limit
-	clr	C
-	mov	A, Temp5
-	subb	A, New_Rcp
-	jnc	int0_int_set_pwm_registers
-
-	mov	A, Temp5						; Multiply limit by 4 (8 for 48MHz MCUs)
-IF MCU_48MHZ == 0
-	mov	B, #4
-ELSE
-	mov	B, #8
-ENDIF
-	mul	AB
-	mov	Temp3, A
-	mov	Temp4, B
+;	; Set pwm limit
+;	clr	C
+;	mov	A, Pwm_Limit					; Limit to the smallest
+;	mov	Temp5, A						; Store limit in Temp5
+;	subb	A, Pwm_Limit_By_Rpm
+;	jc	($+4)
+;
+;	mov	Temp5, Pwm_Limit_By_Rpm
+;
+;	; Check against limit
+;	clr	C
+;	mov	A, Temp5
+;	subb	A, New_Rcp
+;	jnc	int0_int_set_pwm_registers
+;
+;	mov	A, Temp5						; Multiply limit by 4 (8 for 48MHz MCUs)
+;IF MCU_48MHZ == 0
+;	mov	B, #4
+;ELSE
+;	mov	B, #8
+;ENDIF
+;	mul	AB
+;	mov	Temp3, A
+;	mov	Temp4, B
 
 int0_int_set_pwm_registers:
 	mov	A, Temp3
@@ -1657,89 +1657,89 @@ waitxms_m:	; Middle loop
 	djnz	Temp2, waitxms_o
 	ret
 
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Set pwm limit low rpm
+;;
+;; No assumptions
+;;
+;; Sets power limit for low rpms and disables demag for low rpms
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;set_pwm_limit_low_rpm:
+;	; Set pwm limit
+;	mov	Temp1, #0FFh					; Default full power
+;	jb	Flags1.STARTUP_PHASE, set_pwm_limit_low_rpm_exit	; Exit if startup phase set
 ;
-; Set pwm limit low rpm
+;	mov	Temp2, #Pgm_Enable_Power_Prot		; Check if low RPM power protection is enabled
+;	mov	A, @Temp2
+;	jz	set_pwm_limit_low_rpm_exit		; Exit if disabled
 ;
-; No assumptions
+;	mov	A, Comm_Period4x_H
+;	jz	set_pwm_limit_low_rpm_exit		; Avoid divide by zero
 ;
-; Sets power limit for low rpms and disables demag for low rpms
+;	mov	A, #255						; Divide 255 by Comm_Period4x_H
+;	mov	B, Comm_Period4x_H
+;	div	AB
+;	mov	B, Low_Rpm_Pwr_Slope			; Multiply by slope
+;	jnb	Flags1.INITIAL_RUN_PHASE, ($+6)	; More protection for initial run phase
+;	mov	B, #5
+;	mul	AB
+;	mov	Temp1, A						; Set new limit
+;	xch	A, B
+;	jz	($+4)						; Limit to max
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-set_pwm_limit_low_rpm:
-	; Set pwm limit
-	mov	Temp1, #0FFh					; Default full power
-	jb	Flags1.STARTUP_PHASE, set_pwm_limit_low_rpm_exit	; Exit if startup phase set
-
-	mov	Temp2, #Pgm_Enable_Power_Prot		; Check if low RPM power protection is enabled
-	mov	A, @Temp2
-	jz	set_pwm_limit_low_rpm_exit		; Exit if disabled
-
-	mov	A, Comm_Period4x_H
-	jz	set_pwm_limit_low_rpm_exit		; Avoid divide by zero
-
-	mov	A, #255						; Divide 255 by Comm_Period4x_H
-	mov	B, Comm_Period4x_H
-	div	AB
-	mov	B, Low_Rpm_Pwr_Slope			; Multiply by slope
-	jnb	Flags1.INITIAL_RUN_PHASE, ($+6)	; More protection for initial run phase 
-	mov	B, #5
-	mul	AB
-	mov	Temp1, A						; Set new limit				
-	xch	A, B
-	jz	($+4)						; Limit to max
-	
-	mov	Temp1, #0FFh				
-
-	clr	C
-	mov	A, Temp1						; Limit to min
-	subb	A, Pwm_Limit_Beg
-	jnc	set_pwm_limit_low_rpm_exit
-
-	mov	Temp1, Pwm_Limit_Beg
-
-set_pwm_limit_low_rpm_exit:
-	mov	Pwm_Limit_By_Rpm, Temp1				
-	ret
-	
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;	mov	Temp1, #0FFh
 ;
-; Set pwm limit high rpm
+;	clr	C
+;	mov	A, Temp1						; Limit to min
+;	subb	A, Pwm_Limit_Beg
+;	jnc	set_pwm_limit_low_rpm_exit
 ;
-; No assumptions
+;	mov	Temp1, Pwm_Limit_Beg
 ;
-; Sets power limit for high rpms
+;set_pwm_limit_low_rpm_exit:
+;	mov	Pwm_Limit_By_Rpm, Temp1
+;	ret
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-set_pwm_limit_high_rpm:
-IF MCU_48MHZ >= 1
-	clr	C
-	mov	A, Comm_Period4x_L
-	subb	A, #0A0h				; Limit Comm_Period to 160, which is 500k erpm
-	mov	A, Comm_Period4x_H
-	subb	A, #00h
-ELSE
-	clr	C
-	mov	A, Comm_Period4x_L
-	subb	A, #0E4h				; Limit Comm_Period to 228, which is 350k erpm
-	mov	A, Comm_Period4x_H
-	subb	A, #00h
-ENDIF
-	mov	A, Pwm_Limit_By_Rpm
-	jnc	set_pwm_limit_high_rpm_inc_limit
-	
-	dec	A
-	ajmp	set_pwm_limit_high_rpm_store
-	
-set_pwm_limit_high_rpm_inc_limit:
-	inc	A
-set_pwm_limit_high_rpm_store:
-	jz	($+4)
-
-	mov	Pwm_Limit_By_Rpm, A
-
-	ret
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Set pwm limit high rpm
+;;
+;; No assumptions
+;;
+;; Sets power limit for high rpms
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;set_pwm_limit_high_rpm:
+;IF MCU_48MHZ >= 1
+;	clr	C
+;	mov	A, Comm_Period4x_L
+;	subb	A, #0A0h				; Limit Comm_Period to 160, which is 500k erpm
+;	mov	A, Comm_Period4x_H
+;	subb	A, #00h
+;ELSE
+;	clr	C
+;	mov	A, Comm_Period4x_L
+;	subb	A, #0E4h				; Limit Comm_Period to 228, which is 350k erpm
+;	mov	A, Comm_Period4x_H
+;	subb	A, #00h
+;ENDIF
+;	mov	A, Pwm_Limit_By_Rpm
+;	jnc	set_pwm_limit_high_rpm_inc_limit
+;
+;	dec	A
+;	ajmp	set_pwm_limit_high_rpm_store
+;
+;set_pwm_limit_high_rpm_inc_limit:
+;	inc	A
+;set_pwm_limit_high_rpm_store:
+;	jz	($+4)
+;
+;	mov	Pwm_Limit_By_Rpm, A
+;
+;	ret
 
 
 ;**** **** **** **** **** **** **** **** **** **** **** **** ****
@@ -1878,889 +1878,896 @@ set_startup_pwm:
 	ret
 
 
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Initialize timing routine
+;;
+;; No assumptions
+;;
+;; Part of initialization before motor start
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;initialize_timing:
+;	mov	Comm_Period4x_L, #00h				; Set commutation period registers
+;	mov	Comm_Period4x_H, #0F0h
+;	ret
 ;
-; Initialize timing routine
 ;
-; No assumptions
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Calculate next commutation timing routine
+;;
+;; No assumptions
+;;
+;; Called immediately after each commutation
+;; Also sets up timer 3 to wait advance timing
+;; Two entry points are used
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;calc_next_comm_timing:		; Entry point for run phase
+;	; Read commutation time
+;	clr	IE_EA
+;	clr	TMR2CN0_TR2		; Timer 2 disabled
+;	mov	Temp1, TMR2L		; Load timer value
+;	mov	Temp2, TMR2H
+;	mov	Temp3, Timer2_X
+;	jnb	TMR2CN0_TF2H, ($+4)	; Check if interrupt is pending
+;	inc	Temp3			; If it is pending, then timer has already wrapped
+;	setb	TMR2CN0_TR2		; Timer 2 enabled
+;	setb	IE_EA
+;IF MCU_48MHZ >= 1
+;	clr	C
+;	mov	A, Temp3
+;	rrc	A
+;	mov	Temp3, A
+;	mov	A, Temp2
+;	rrc	A
+;	mov	Temp2, A
+;	mov	A, Temp1
+;	rrc	A
+;	mov	Temp1, A
+;ENDIF
+;	; Calculate this commutation time
+;	mov	Temp4, Prev_Comm_L
+;	mov	Temp5, Prev_Comm_H
+;	mov	Prev_Comm_L, Temp1		; Store timestamp as previous commutation
+;	mov	Prev_Comm_H, Temp2
+;	clr	C
+;	mov	A, Temp1
+;	subb	A, Temp4				; Calculate the new commutation time
+;	mov	Temp1, A
+;	mov	A, Temp2
+;	subb	A, Temp5
+;	jb	Flags1.STARTUP_PHASE, calc_next_comm_startup
 ;
-; Part of initialization before motor start
+;IF MCU_48MHZ >= 1
+;	anl	A, #7Fh
+;ENDIF
+;	mov	Temp2, A
+;	jnb	Flags1.HIGH_RPM, ($+5)	; Branch if high rpm
+;	ajmp	calc_next_comm_timing_fast
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-initialize_timing: 
-	mov	Comm_Period4x_L, #00h				; Set commutation period registers
-	mov	Comm_Period4x_H, #0F0h
-	ret
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;	ajmp	calc_next_comm_normal
 ;
-; Calculate next commutation timing routine
+;calc_next_comm_startup:
+;	mov	Temp6, Prev_Comm_X
+;	mov	Prev_Comm_X, Temp3		; Store extended timestamp as previous commutation
+;	mov	Temp2, A
+;	mov	A, Temp3
+;	subb	A, Temp6				; Calculate the new extended commutation time
+;IF MCU_48MHZ >= 1
+;	anl	A, #7Fh
+;ENDIF
+;	mov	Temp3, A
+;	jz	calc_next_comm_startup_no_X
 ;
-; No assumptions
+;	mov	Temp1, #0FFh
+;	mov	Temp2, #0FFh
+;	ajmp	calc_next_comm_startup_average
 ;
-; Called immediately after each commutation
-; Also sets up timer 3 to wait advance timing
-; Two entry points are used
+;calc_next_comm_startup_no_X:
+;	mov	Temp7, Prev_Prev_Comm_L
+;	mov	Temp8, Prev_Prev_Comm_H
+;	mov	Prev_Prev_Comm_L, Temp4
+;	mov	Prev_Prev_Comm_H, Temp5
+;	mov	Temp1, Prev_Comm_L		; Reload this commutation time
+;	mov	Temp2, Prev_Comm_H
+;	clr	C
+;	mov	A, Temp1
+;	subb	A, Temp7				; Calculate the new commutation time based upon the two last commutations (to reduce sensitivity to offset)
+;	mov	Temp1, A
+;	mov	A, Temp2
+;	subb	A, Temp8
+;	mov	Temp2, A
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-calc_next_comm_timing:		; Entry point for run phase
-	; Read commutation time
-	clr	IE_EA
-	clr	TMR2CN0_TR2		; Timer 2 disabled
-	mov	Temp1, TMR2L		; Load timer value
-	mov	Temp2, TMR2H	
-	mov	Temp3, Timer2_X
-	jnb	TMR2CN0_TF2H, ($+4)	; Check if interrupt is pending
-	inc	Temp3			; If it is pending, then timer has already wrapped
-	setb	TMR2CN0_TR2		; Timer 2 enabled
-	setb	IE_EA
-IF MCU_48MHZ >= 1
-	clr	C
-	mov	A, Temp3
-	rrc	A
-	mov	Temp3, A
-	mov	A, Temp2
-	rrc	A
-	mov	Temp2, A
-	mov	A, Temp1
-	rrc	A
-	mov	Temp1, A
-ENDIF
-	; Calculate this commutation time
-	mov	Temp4, Prev_Comm_L
-	mov	Temp5, Prev_Comm_H
-	mov	Prev_Comm_L, Temp1		; Store timestamp as previous commutation
-	mov	Prev_Comm_H, Temp2
-	clr	C
-	mov	A, Temp1
-	subb	A, Temp4				; Calculate the new commutation time
-	mov	Temp1, A
-	mov	A, Temp2
-	subb	A, Temp5
-	jb	Flags1.STARTUP_PHASE, calc_next_comm_startup
-
-IF MCU_48MHZ >= 1
-	anl	A, #7Fh
-ENDIF
-	mov	Temp2, A
-	jnb	Flags1.HIGH_RPM, ($+5)	; Branch if high rpm
-	ajmp	calc_next_comm_timing_fast
-
-	ajmp	calc_next_comm_normal
-
-calc_next_comm_startup:
-	mov	Temp6, Prev_Comm_X
-	mov	Prev_Comm_X, Temp3		; Store extended timestamp as previous commutation
-	mov	Temp2, A
-	mov	A, Temp3
-	subb	A, Temp6				; Calculate the new extended commutation time
-IF MCU_48MHZ >= 1
-	anl	A, #7Fh
-ENDIF
-	mov	Temp3, A
-	jz	calc_next_comm_startup_no_X
-
-	mov	Temp1, #0FFh
-	mov	Temp2, #0FFh
-	ajmp	calc_next_comm_startup_average
-
-calc_next_comm_startup_no_X:
-	mov	Temp7, Prev_Prev_Comm_L
-	mov	Temp8, Prev_Prev_Comm_H
-	mov	Prev_Prev_Comm_L, Temp4
-	mov	Prev_Prev_Comm_H, Temp5
-	mov	Temp1, Prev_Comm_L		; Reload this commutation time	
-	mov	Temp2, Prev_Comm_H
-	clr	C
-	mov	A, Temp1
-	subb	A, Temp7				; Calculate the new commutation time based upon the two last commutations (to reduce sensitivity to offset)
-	mov	Temp1, A
-	mov	A, Temp2
-	subb	A, Temp8
-	mov	Temp2, A
-
-calc_next_comm_startup_average:
-	clr	C
-	mov	A, Comm_Period4x_H		; Average with previous and save
-	rrc	A
-	mov	Temp4, A
-	mov	A, Comm_Period4x_L
-	rrc	A
-	mov	Temp3, A
-	mov	A, Temp1			
-	add	A, Temp3
-	mov	Comm_Period4x_L, A
-	mov	A, Temp2
-	addc	A, Temp4
-	mov	Comm_Period4x_H, A
-	jnc	($+8)
-
-	mov	Comm_Period4x_L, #0FFh
-	mov	Comm_Period4x_H, #0FFh
-
-	ajmp	calc_new_wait_times_setup
-
-calc_next_comm_normal:
-	; Calculate new commutation time 
-	mov	Temp3, Comm_Period4x_L	; Comm_Period4x(-l-h) holds the time of 4 commutations
-	mov	Temp4, Comm_Period4x_H
-	mov	Temp5, Comm_Period4x_L	; Copy variables
-	mov	Temp6, Comm_Period4x_H
-	mov	Temp7, #4				; Divide Comm_Period4x 4 times as default
-	mov	Temp8, #2				; Divide new commutation time 2 times as default
-	clr	C
-	mov	A, Temp4
-	subb	A, #04h
-	jc	calc_next_comm_avg_period_div
-
-	dec	Temp7				; Reduce averaging time constant for low speeds
-	dec	Temp8
-
-	clr	C
-	mov	A, Temp4
-	subb	A, #08h
-	jc	calc_next_comm_avg_period_div
-
-	jb	Flags1.INITIAL_RUN_PHASE, calc_next_comm_avg_period_div	; Do not average very fast during initial run
-
-	dec	Temp7				; Reduce averaging time constant more for even lower speeds
-	dec	Temp8
-
-calc_next_comm_avg_period_div:
-	clr	C
-	mov	A, Temp6					
-	rrc	A					; Divide by 2
-	mov	Temp6, A	
-	mov	A, Temp5				
-	rrc	A
-	mov	Temp5, A
-	djnz	Temp7, calc_next_comm_avg_period_div
-
-	clr	C
-	mov	A, Temp3
-	subb	A, Temp5				; Subtract a fraction
-	mov	Temp3, A
-	mov	A, Temp4
-	subb	A, Temp6
-	mov	Temp4, A
-	mov	A, Temp8				; Divide new time
-	jz	calc_next_comm_new_period_div_done
-
-calc_next_comm_new_period_div:
-	clr	C
-	mov	A, Temp2					
-	rrc	A					; Divide by 2
-	mov	Temp2, A	
-	mov	A, Temp1				
-	rrc	A
-	mov	Temp1, A
-	djnz	Temp8, calc_next_comm_new_period_div
-
-calc_next_comm_new_period_div_done:
-	mov	A, Temp3
-	add	A, Temp1				; Add the divided new time
-	mov	Temp3, A
-	mov	A, Temp4
-	addc	A, Temp2
-	mov	Temp4, A
-	mov	Comm_Period4x_L, Temp3	; Store Comm_Period4x_X
-	mov	Comm_Period4x_H, Temp4
-	jnc	calc_new_wait_times_setup; If period larger than 0xffff - go to slow case
-
-	mov	Temp4, #0FFh
-	mov	Comm_Period4x_L, Temp4	; Set commutation period registers to very slow timing (0xffff)
-	mov	Comm_Period4x_H, Temp4
-
-calc_new_wait_times_setup:	
-	; Set high rpm bit (if above 156k erpm)
-	clr	C
-	mov	A, Temp4
-	subb	A, #2
-	jnc	($+4)
-
-	setb	Flags1.HIGH_RPM 		; Set high rpm bit
-	
-	; Load programmed commutation timing
-	jnb	Flags1.STARTUP_PHASE, calc_new_wait_per_startup_done	; Set dedicated timing during startup
-
-	mov	Temp8, #3
-	ajmp	calc_new_wait_per_demag_done
-
-calc_new_wait_per_startup_done:
-	mov	Temp1, #Pgm_Comm_Timing	; Load timing setting
-	mov	A, @Temp1				
-	mov	Temp8, A				; Store in Temp8
-	clr	C
-	mov	A, Demag_Detected_Metric	; Check demag metric
-	subb	A, #130
-	jc	calc_new_wait_per_demag_done
-
-	inc	Temp8				; Increase timing
-
-	clr	C
-	mov	A, Demag_Detected_Metric
-	subb	A, #160
-	jc	($+3)
-
-	inc	Temp8				; Increase timing again
-
-	clr	C
-	mov	A, Temp8				; Limit timing to max
-	subb	A, #6
-	jc	($+4)
-
-	mov	Temp8, #5				; Set timing to max
-
-calc_new_wait_per_demag_done:
-	; Set timing reduction
-	mov	Temp7, #2
-	; Load current commutation timing
-	mov	A, Comm_Period4x_H		; Divide 4 times
-	swap	A
-	anl	A, #00Fh
-	mov	Temp2, A
-	mov	A, Comm_Period4x_H
-	swap	A
-	anl	A, #0F0h
-	mov	Temp1, A
-	mov	A, Comm_Period4x_L
-	swap	A
-	anl	A, #00Fh
-	add	A, Temp1
-	mov	Temp1, A
-
-	clr	C
-	mov	A, Temp1
-	subb	A, Temp7
-	mov	Temp3, A
-	mov	A, Temp2				
-	subb	A, #0
-	mov	Temp4, A
-	jc	load_min_time			; Check that result is still positive
-
-	clr	C
-	mov	A, Temp3
-	subb	A, #1
-	mov	A, Temp4			
-	subb	A, #0
-	jnc	calc_new_wait_times_exit	; Check that result is still above minumum
-
-load_min_time:
-	mov	Temp3, #1
-	clr	A
-	mov	Temp4, A 
-
-calc_new_wait_times_exit:	
-	ljmp	wait_advance_timing
-
-
-; Fast calculation (Comm_Period4x_H less than 2)
-calc_next_comm_timing_fast:			
-	; Calculate new commutation time
-	mov	Temp3, Comm_Period4x_L	; Comm_Period4x(-l-h) holds the time of 4 commutations
-	mov	Temp4, Comm_Period4x_H
-	mov	A, Temp4				; Divide by 2 4 times
-	swap	A
-	mov	Temp7, A
-	mov	A, Temp3
-	swap A
-	anl	A, #0Fh
-	orl	A, Temp7
-	mov	Temp5, A
-	clr	C
-	mov	A, Temp3				; Subtract a fraction
-	subb	A, Temp5
-	mov	Temp3, A
-	mov	A, Temp4				
-	subb	A, #0
-	mov	Temp4, A
-	clr	C
-	mov	A, Temp1
-	rrc	A					; Divide by 2 2 times
-	clr	C
-	rrc	A
-	mov	Temp1, A
-	mov	A, Temp3				; Add the divided new time
-	add	A, Temp1
-	mov	Temp3, A
-	mov	A, Temp4
-	addc	A, #0
-	mov	Temp4, A
-	mov	Comm_Period4x_L, Temp3	; Store Comm_Period4x_X
-	mov	Comm_Period4x_H, Temp4
-	clr	C
-	mov	A, Temp4				; If erpm below 156k - go to normal case
-	subb	A, #2
-	jc	($+4)
-
-	clr	Flags1.HIGH_RPM 		; Clear high rpm bit
-
-	; Set timing reduction
-	mov	Temp1, #2
-	mov	A, Temp4				; Divide by 2 4 times
-	swap	A
-	mov	Temp7, A
-	mov	Temp4, #0
-	mov	A, Temp3
-	swap A
-	anl	A, #0Fh
-	orl	A, Temp7
-	mov	Temp3, A
-	clr	C
-	mov	A, Temp3
-	subb	A, Temp1
-	mov	Temp3, A
-	jc	load_min_time_fast		; Check that result is still positive
-
-	clr	C
-	subb	A, #1
-	jnc	calc_new_wait_times_fast_done	; Check that result is still above minumum
-
-load_min_time_fast:
-	mov	Temp3, #1
-
-calc_new_wait_times_fast_done:	
-	mov	Temp1, #Pgm_Comm_Timing	; Load timing setting
-	mov	A, @Temp1				
-	mov	Temp8, A				; Store in Temp8
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;calc_next_comm_startup_average:
+;	clr	C
+;	mov	A, Comm_Period4x_H		; Average with previous and save
+;	rrc	A
+;	mov	Temp4, A
+;	mov	A, Comm_Period4x_L
+;	rrc	A
+;	mov	Temp3, A
+;	mov	A, Temp1
+;	add	A, Temp3
+;	mov	Comm_Period4x_L, A
+;	mov	A, Temp2
+;	addc	A, Temp4
+;	mov	Comm_Period4x_H, A
+;	jnc	($+8)
 ;
-; Wait advance timing routine
+;	mov	Comm_Period4x_L, #0FFh
+;	mov	Comm_Period4x_H, #0FFh
 ;
-; No assumptions
-; NOTE: Be VERY careful if using temp registers. They are passed over this routine
+;	ajmp	calc_new_wait_times_setup
 ;
-; Waits for the advance timing to elapse and sets up the next zero cross wait
+;calc_next_comm_normal:
+;	; Calculate new commutation time
+;	mov	Temp3, Comm_Period4x_L	; Comm_Period4x(-l-h) holds the time of 4 commutations
+;	mov	Temp4, Comm_Period4x_H
+;	mov	Temp5, Comm_Period4x_L	; Copy variables
+;	mov	Temp6, Comm_Period4x_H
+;	mov	Temp7, #4				; Divide Comm_Period4x 4 times as default
+;	mov	Temp8, #2				; Divide new commutation time 2 times as default
+;	clr	C
+;	mov	A, Temp4
+;	subb	A, #04h
+;	jc	calc_next_comm_avg_period_div
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-wait_advance_timing:	
-	jnb	Flags0.T3_PENDING, ($+5)
-	ajmp	wait_advance_timing
-
-	; Setup next wait time
-	mov	TMR3RLL, Wt_ZC_Tout_Start_L
-	mov	TMR3RLH, Wt_ZC_Tout_Start_H
-	setb	Flags0.T3_PENDING
-	orl	EIE1, #80h	; Enable timer 3 interrupts
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;	dec	Temp7				; Reduce averaging time constant for low speeds
+;	dec	Temp8
 ;
-; Calculate new wait times routine
+;	clr	C
+;	mov	A, Temp4
+;	subb	A, #08h
+;	jc	calc_next_comm_avg_period_div
 ;
-; No assumptions
+;	jb	Flags1.INITIAL_RUN_PHASE, calc_next_comm_avg_period_div	; Do not average very fast during initial run
 ;
-; Calculates new wait times
+;	dec	Temp7				; Reduce averaging time constant more for even lower speeds
+;	dec	Temp8
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-calc_new_wait_times:	
-	clr	C
-	clr	A
-	subb	A, Temp3				; Negate
-	mov	Temp1, A	
-	clr	A
-	subb	A, Temp4				
-	mov	Temp2, A	
-IF MCU_48MHZ >= 1
-	clr	C
-	mov	A, Temp1				; Multiply by 2
-	rlc	A
-	mov	Temp1, A
-	mov	A, Temp2
-	rlc	A
-	mov	Temp2, A
-ENDIF
-	jnb	Flags1.HIGH_RPM, ($+6)	; Branch if high rpm
-	ljmp	calc_new_wait_times_fast
-
-	mov	A, Temp1				; Copy values
-	mov	Temp3, A
-	mov	A, Temp2
-	mov	Temp4, A
-	setb	C					; Negative numbers - set carry
-	mov	A, Temp2				
-	rrc	A					; Divide by 2
-	mov	Temp6, A
-	mov	A, Temp1
-	rrc	A
-	mov	Temp5, A
-	mov	Wt_Zc_Tout_Start_L, Temp1; Set 15deg time for zero cross scan timeout
-	mov	Wt_Zc_Tout_Start_H, Temp2
-	clr	C
-	mov	A, Temp8				; (Temp8 has Pgm_Comm_Timing)
-	subb	A, #3				; Is timing normal?
-	jz	store_times_decrease	; Yes - branch
-
-	mov	A, Temp8				
-	jb	ACC.0, adjust_timing_two_steps	; If an odd number - branch
-
-	mov	A, Temp1				; Add 7.5deg and store in Temp1/2
-	add	A, Temp5
-	mov	Temp1, A
-	mov	A, Temp2
-	addc	A, Temp6
-	mov	Temp2, A
-	mov	A, Temp5				; Store 7.5deg in Temp3/4
-	mov	Temp3, A
-	mov	A, Temp6			
-	mov	Temp4, A
-	jmp	store_times_up_or_down
-
-adjust_timing_two_steps:
-	mov	A, Temp1				; Add 15deg and store in Temp1/2
-	add	A, Temp1
-	mov	Temp1, A
-	mov	A, Temp2
-	addc	A, Temp2
-	mov	Temp2, A
-	clr	C
-	mov	A, Temp1
-	add	A, #1
-	mov	Temp1, A
-	mov	A, Temp2
-	addc	A, #0
-	mov	Temp2, A
-	mov	Temp3, #-1				; Store minimum time in Temp3/4
-	mov	Temp4, #0FFh
-
-store_times_up_or_down:
-	clr	C
-	mov	A, Temp8				
-	subb	A, #3					; Is timing higher than normal?
-	jc	store_times_decrease		; No - branch
-
-store_times_increase:
-	mov	Wt_Comm_Start_L, Temp3		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
-	mov	Wt_Comm_Start_H, Temp4
-	mov	Wt_Adv_Start_L, Temp1		; New commutation advance time (~15deg nominal)
-	mov	Wt_Adv_Start_H, Temp2
-	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
-	mov	Wt_Zc_Scan_Start_H, Temp6
-	ljmp	wait_before_zc_scan
-
-store_times_decrease:
-	mov	Wt_Comm_Start_L, Temp1		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
-	mov	Wt_Comm_Start_H, Temp2
-	mov	Wt_Adv_Start_L, Temp3		; New commutation advance time (~15deg nominal)
-	mov	Wt_Adv_Start_H, Temp4
-	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
-	mov	Wt_Zc_Scan_Start_H, Temp6
-	jnb	Flags1.STARTUP_PHASE, store_times_exit
-
-	mov	Wt_Comm_Start_L, #0F0h		; Set very short delays for all but advance time during startup, in order to widen zero cross capture range
-	mov	Wt_Comm_Start_H, #0FFh
-	mov	Wt_Zc_Scan_Start_L, #0F0h
-	mov	Wt_Zc_Scan_Start_H, #0FFh
-	mov	Wt_Zc_Tout_Start_L, #0F0h
-	mov	Wt_Zc_Tout_Start_H, #0FFh
-
-store_times_exit:
-	ljmp	wait_before_zc_scan
-
-
-calc_new_wait_times_fast:	
-	mov	A, Temp1				; Copy values
-	mov	Temp3, A
-	setb	C					; Negative numbers - set carry
-	mov	A, Temp1				; Divide by 2
-	rrc	A
-	mov	Temp5, A
-	mov	Wt_Zc_Tout_Start_L, Temp1; Set 15deg time for zero cross scan timeout
-	clr	C
-	mov	A, Temp8				; (Temp8 has Pgm_Comm_Timing)
-	subb	A, #3				; Is timing normal?
-	jz	store_times_decrease_fast; Yes - branch
-
-	mov	A, Temp8				
-	jb	ACC.0, adjust_timing_two_steps_fast	; If an odd number - branch
-
-	mov	A, Temp1				; Add 7.5deg and store in Temp1
-	add	A, Temp5
-	mov	Temp1, A
-	mov	A, Temp5				; Store 7.5deg in Temp3
-	mov	Temp3, A
-	ajmp	store_times_up_or_down_fast
-
-adjust_timing_two_steps_fast:
-	mov	A, Temp1				; Add 15deg and store in Temp1
-	add	A, Temp1
-	add	A, #1
-	mov	Temp1, A
-	mov	Temp3, #-1			; Store minimum time in Temp3
-
-store_times_up_or_down_fast:
-	clr	C
-	mov	A, Temp8				
-	subb	A, #3				; Is timing higher than normal?
-	jc	store_times_decrease_fast; No - branch
-
-store_times_increase_fast:
-	mov	Wt_Comm_Start_L, Temp3		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
-	mov	Wt_Adv_Start_L, Temp1		; New commutation advance time (~15deg nominal)
-	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
-	ljmp	wait_before_zc_scan
-
-store_times_decrease_fast:
-	mov	Wt_Comm_Start_L, Temp1		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
-	mov	Wt_Adv_Start_L, Temp3		; New commutation advance time (~15deg nominal)
-	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;calc_next_comm_avg_period_div:
+;	clr	C
+;	mov	A, Temp6
+;	rrc	A					; Divide by 2
+;	mov	Temp6, A
+;	mov	A, Temp5
+;	rrc	A
+;	mov	Temp5, A
+;	djnz	Temp7, calc_next_comm_avg_period_div
 ;
-; Wait before zero cross scan routine
+;	clr	C
+;	mov	A, Temp3
+;	subb	A, Temp5				; Subtract a fraction
+;	mov	Temp3, A
+;	mov	A, Temp4
+;	subb	A, Temp6
+;	mov	Temp4, A
+;	mov	A, Temp8				; Divide new time
+;	jz	calc_next_comm_new_period_div_done
 ;
-; No assumptions
+;calc_next_comm_new_period_div:
+;	clr	C
+;	mov	A, Temp2
+;	rrc	A					; Divide by 2
+;	mov	Temp2, A
+;	mov	A, Temp1
+;	rrc	A
+;	mov	Temp1, A
+;	djnz	Temp8, calc_next_comm_new_period_div
 ;
-; Waits for the zero cross scan wait time to elapse
-; Also sets up timer 3 for the zero cross scan timeout time
+;calc_next_comm_new_period_div_done:
+;	mov	A, Temp3
+;	add	A, Temp1				; Add the divided new time
+;	mov	Temp3, A
+;	mov	A, Temp4
+;	addc	A, Temp2
+;	mov	Temp4, A
+;	mov	Comm_Period4x_L, Temp3	; Store Comm_Period4x_X
+;	mov	Comm_Period4x_H, Temp4
+;	jnc	calc_new_wait_times_setup; If period larger than 0xffff - go to slow case
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-wait_before_zc_scan:	
-	jnb	Flags0.T3_PENDING, ($+5)
-	ajmp	wait_before_zc_scan
-
-	mov	Startup_Zc_Timeout_Cntd, #2
-setup_zc_scan_timeout:
-	setb	Flags0.T3_PENDING
-	orl	EIE1, #80h			; Enable timer 3 interrupts
-	mov	A, Flags1
-	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
-	jz	wait_before_zc_scan_exit		
-
-	mov	Temp1, Comm_Period4x_L	; Set long timeout when starting
-	mov	Temp2, Comm_Period4x_H
-	clr	C
-	mov	A, Temp2
-	rrc	A
-	mov	Temp2, A
-	mov	A, Temp1
-	rrc	A
-	mov	Temp1, A
-IF MCU_48MHZ == 0
-	clr	C
-	mov	A, Temp2
-	rrc	A
-	mov	Temp2, A
-	mov	A, Temp1
-	rrc	A
-	mov	Temp1, A
-ENDIF
-	jnb	Flags1.STARTUP_PHASE, setup_zc_scan_timeout_startup_done
-
-	mov	A, Temp2
-	add	A, #40h				; Increase timeout somewhat to avoid false wind up
-	mov	Temp2, A
-
-setup_zc_scan_timeout_startup_done:
-	clr	IE_EA
-	anl	EIE1, #7Fh			; Disable timer 3 interrupts
-	mov	TMR3CN0, #00h			; Timer 3 disabled and interrupt flag cleared
-	clr	C
-	clr	A
-	subb	A, Temp1				; Set timeout
-	mov	TMR3L, A
-	clr	A
-	subb	A, Temp2		
-	mov	TMR3H, A
-	mov	TMR3CN0, #04h			; Timer 3 enabled and interrupt flag cleared
-	setb	Flags0.T3_PENDING
-	orl	EIE1, #80h			; Enable timer 3 interrupts
-	setb	IE_EA
-
-wait_before_zc_scan_exit:          
-	ret
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;	mov	Temp4, #0FFh
+;	mov	Comm_Period4x_L, Temp4	; Set commutation period registers to very slow timing (0xffff)
+;	mov	Comm_Period4x_H, Temp4
 ;
-; Wait for comparator to go low/high routines
+;calc_new_wait_times_setup:
+;	; Set high rpm bit (if above 156k erpm)
+;	clr	C
+;	mov	A, Temp4
+;	subb	A, #2
+;	jnc	($+4)
 ;
-; No assumptions
+;	setb	Flags1.HIGH_RPM 		; Set high rpm bit
 ;
-; Waits for the zero cross scan wait time to elapse
-; Then scans for comparator going low/high
+;	; Load programmed commutation timing
+;	jnb	Flags1.STARTUP_PHASE, calc_new_wait_per_startup_done	; Set dedicated timing during startup
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-wait_for_comp_out_low:
-	setb	Flags0.DEMAG_DETECTED		; Set demag detected flag as default
-	mov	Comparator_Read_Cnt, #0		; Reset number of comparator reads
-	mov	Bit_Access, #00h			; Desired comparator output
-	jnb	Flags1.DIR_CHANGE_BRAKE, ($+6)
-	mov	Bit_Access, #40h		
-	ajmp	wait_for_comp_out_start
-
-wait_for_comp_out_high:
-	setb	Flags0.DEMAG_DETECTED		; Set demag detected flag as default
-	mov	Comparator_Read_Cnt, #0		; Reset number of comparator reads
-	mov	Bit_Access, #40h			; Desired comparator output
-	jnb	Flags1.DIR_CHANGE_BRAKE, ($+6)
-	mov	Bit_Access, #00h		
-
-wait_for_comp_out_start:
-	; Set number of comparator readings
-	mov	Temp1, #1					; Number of OK readings required
-	mov	Temp2, #1					; Max number of readings required
-	jb	Flags1.HIGH_RPM, comp_scale_samples	; Branch if high rpm
-
-	mov	A, Flags1					; Clear demag detected flag if start phases
-	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
-	jz	($+4)
-		
-	clr	Flags0.DEMAG_DETECTED
-
-	mov	Temp2, #20 				; Too low value (~<15) causes rough running at pwm harmonics. Too high a value (~>35) causes the RCT4215 630 to run rough on full throttle
-	mov 	A, Comm_Period4x_H			; Set number of readings higher for lower speeds
-	clr	C
-	rrc	A
-	jnz	($+3)
-	inc	A
-	mov	Temp1, A
-	clr	C						
-	subb	A, #20
-	jc	($+4)
-
-	mov	Temp1, #20
-	
-	jnb	Flags1.STARTUP_PHASE, comp_scale_samples
-
-	mov	Temp1, #27				; Set many samples during startup, approximately one pwm period
-	mov	Temp2, #27
-
-comp_scale_samples:
-IF MCU_48MHZ >= 1
-	clr	C
-	mov	A, Temp1
-	rlc	A
-	mov	Temp1, A
-	clr	C
-	mov	A, Temp2
-	rlc	A
-	mov	Temp2, A
-ENDIF
-comp_check_timeout:
-	jb	Flags0.T3_PENDING, comp_check_timeout_not_timed_out		; Has zero cross scan timeout elapsed?
-
-	mov	A, Comparator_Read_Cnt			; Check that comparator has been read
-	jz	comp_check_timeout_not_timed_out	; If not read - branch
-
-	jnb	Flags1.STARTUP_PHASE, comp_check_timeout_timeout_extended	; Extend timeout during startup
-
-	djnz	Startup_Zc_Timeout_Cntd, comp_check_timeout_extend_timeout
-
-comp_check_timeout_timeout_extended:
-	setb	Flags0.COMP_TIMED_OUT
-	ajmp	setup_comm_wait
-
-comp_check_timeout_extend_timeout:
-	call	setup_zc_scan_timeout
-comp_check_timeout_not_timed_out:
-	inc	Comparator_Read_Cnt			; Increment comparator read count
-	Read_Comp_Out					; Read comparator output
-	anl	A, #40h
-	cjne	A, Bit_Access, comp_read_wrong
-	ajmp	comp_read_ok
-	
-comp_read_wrong:
-	jnb	Flags1.STARTUP_PHASE, comp_read_wrong_not_startup
-
-	inc	Temp1					; Increment number of OK readings required
-	clr	C
-	mov	A, Temp1
-	subb	A, Temp2					; If above initial requirement - do not increment further
-	jc	($+3)
-	dec	Temp1
-
-	ajmp	comp_check_timeout			; Continue to look for good ones
-
-comp_read_wrong_not_startup:
-	jb	Flags0.DEMAG_DETECTED, comp_read_wrong_extend_timeout
-
-	inc	Temp1					; Increment number of OK readings required
-	clr	C
-	mov	A, Temp1
-	subb	A, Temp2					
-	jc	($+4)
-	ajmp	wait_for_comp_out_start		; If above initial requirement - go back and restart
-
-	ajmp	comp_check_timeout			; Otherwise - take another reading
-
-comp_read_wrong_extend_timeout:
-	clr	Flags0.DEMAG_DETECTED		; Clear demag detected flag
-	anl	EIE1, #7Fh				; Disable timer 3 interrupts
-	mov	TMR3CN0, #00h				; Timer 3 disabled and interrupt flag cleared
-	jnb	Flags1.HIGH_RPM, comp_read_wrong_low_rpm	; Branch if not high rpm
-
-	mov	TMR3L, #00h				; Set timeout to ~1ms
-IF MCU_48MHZ >= 1
-	mov	TMR3H, #0F0h
-ELSE
-	mov	TMR3H, #0F8h
-ENDIF
-comp_read_wrong_timeout_set:
-	mov	TMR3CN0, #04h				; Timer 3 enabled and interrupt flag cleared
-	setb	Flags0.T3_PENDING
-	orl	EIE1, #80h				; Enable timer 3 interrupts
-	ljmp	wait_for_comp_out_start		; If comparator output is not correct - go back and restart
-
-comp_read_wrong_low_rpm:
-	mov	A, Comm_Period4x_H			; Set timeout to ~4x comm period 4x value
-	mov	Temp7, #0FFh				; Default to long
-IF MCU_48MHZ >= 1
-	clr	C
-	rlc	A
-	jc	comp_read_wrong_load_timeout
-
-ENDIF
-	clr	C
-	rlc	A
-	jc	comp_read_wrong_load_timeout
-
-	clr	C
-	rlc	A
-	jc	comp_read_wrong_load_timeout
-
-	mov	Temp7, A
-
-comp_read_wrong_load_timeout:
-	clr	C
-	clr	A
-	subb	A, Temp7
-	mov	TMR3L, #0
-	mov	TMR3H, A
-	ajmp	comp_read_wrong_timeout_set
-
-comp_read_ok:
-	clr	C
-	mov	A, Startup_Cnt				; Force a timeout for the first commutation
-	subb	A, #1
-	jnc	($+4)
-	ajmp	wait_for_comp_out_start
-
-	jnb	Flags0.DEMAG_DETECTED, ($+5)	; Do not accept correct comparator output if it is demag
-	ajmp	wait_for_comp_out_start
-
-	djnz	Temp1, comp_read_ok_jmp		; Decrement readings counter - repeat comparator reading if not zero
-	ajmp	($+4)
-
-comp_read_ok_jmp:
-	ajmp	comp_check_timeout
-
-	clr	Flags0.COMP_TIMED_OUT
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;	mov	Temp8, #3
+;	ajmp	calc_new_wait_per_demag_done
 ;
-; Setup commutation timing routine
+;calc_new_wait_per_startup_done:
+;	mov	Temp1, #Pgm_Comm_Timing	; Load timing setting
+;	mov	A, @Temp1
+;	mov	Temp8, A				; Store in Temp8
 ;
-; No assumptions
+;	clr	C
+;	mov	A, Demag_Detected_Metric	; Check demag metric
+;	subb	A, #130
+;	jc	calc_new_wait_per_demag_done
 ;
-; Sets up and starts wait from commutation to zero cross
+;	inc	Temp8				; Increase timing
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-setup_comm_wait:
-	clr	IE_EA
-	anl	EIE1, #7Fh		; Disable timer 3 interrupts
-	mov	TMR3CN0, #00h		; Timer 3 disabled and interrupt flag cleared
-	mov	TMR3L, Wt_Comm_Start_L
-	mov	TMR3H, Wt_Comm_Start_H
-	mov	TMR3CN0, #04h		; Timer 3 enabled and interrupt flag cleared
-	; Setup next wait time
-	mov	TMR3RLL, Wt_Adv_Start_L
-	mov	TMR3RLH, Wt_Adv_Start_H
-	setb	Flags0.T3_PENDING
-	orl	EIE1, #80h		; Enable timer 3 interrupts
-	setb	IE_EA			; Enable interrupts again
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;	clr	C
+;	mov	A, Demag_Detected_Metric
+;	subb	A, #160
+;	jc	($+3)
 ;
-; Evaluate comparator integrity
+;	inc	Temp8				; Increase timing again
 ;
-; No assumptions
+;	clr	C
+;	mov	A, Temp8				; Limit timing to max
+;	subb	A, #6
+;	jc	($+4)
 ;
-; Checks comparator signal behaviour versus expected behaviour
+;	mov	Temp8, #5				; Set timing to max
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-evaluate_comparator_integrity:
-	mov	A, Flags1
-	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
-	jz	eval_comp_check_timeout
-
-	jb	Flags1.INITIAL_RUN_PHASE, ($+5)	; Do not increment beyond startup phase
-	inc	Startup_Cnt					; Increment counter
-	jmp	eval_comp_exit
-
-eval_comp_check_timeout:
-	jnb	Flags0.COMP_TIMED_OUT, eval_comp_exit	; Has timeout elapsed?
-	jb	Flags1.DIR_CHANGE_BRAKE, eval_comp_exit	; Do not exit run mode if it is braking
-	jb	Flags0.DEMAG_DETECTED, eval_comp_exit	; Do not exit run mode if it is a demag situation
-	dec	SP								; Routine exit without "ret" command
-	dec	SP
-	ljmp	run_to_wait_for_power_on_fail			; Yes - exit run mode
-
-eval_comp_exit:
-	ret
-
-
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;calc_new_wait_per_demag_done:
+;	; Set timing reduction
+;	mov	Temp7, #2
+;	; Load current commutation timing
+;	mov	A, Comm_Period4x_H		; Divide 4 times
+;	swap	A
+;	anl	A, #00Fh
+;	mov	Temp2, A
+;	mov	A, Comm_Period4x_H
+;	swap	A
+;	anl	A, #0F0h
+;	mov	Temp1, A
+;	mov	A, Comm_Period4x_L
+;	swap	A
+;	anl	A, #00Fh
+;	add	A, Temp1
+;	mov	Temp1, A
 ;
-; Wait for commutation routine
+;	clr	C
+;	mov	A, Temp1
+;	subb	A, Temp7
+;	mov	Temp3, A
+;	mov	A, Temp2
+;	subb	A, #0
+;	mov	Temp4, A
+;	jc	load_min_time			; Check that result is still positive
 ;
-; No assumptions
+;	clr	C
+;	mov	A, Temp3
+;	subb	A, #1
+;	mov	A, Temp4
+;	subb	A, #0
+;	jnc	calc_new_wait_times_exit	; Check that result is still above minumum
 ;
-; Waits from zero cross to commutation 
+;load_min_time:
+;	mov	Temp3, #1
+;	clr	A
+;	mov	Temp4, A
 ;
-;**** **** **** **** **** **** **** **** **** **** **** **** ****
-wait_for_comm: 
-	; Update demag metric
-	mov	Temp1, #0
-	jnb	Flags0.DEMAG_DETECTED, ($+5)
-
-	mov	Temp1, #1
-
-	mov	A, Demag_Detected_Metric	; Sliding average of 8, 256 when demag and 0 when not. Limited to minimum 120
-	mov	B, #7
-	mul	AB					; Multiply by 7
-	mov	Temp2, A
-	mov	A, B					; Add new value for current demag status
-	add	A, Temp1				
-	mov	B, A
-	mov	A, Temp2
-	mov	C, B.0				; Divide by 8
-	rrc	A					
-	mov	C, B.1
-	rrc	A
-	mov	C, B.2
-	rrc	A
-	mov	Demag_Detected_Metric, A
-	clr	C
-	subb	A, #120				; Limit to minimum 120
-	jnc	($+5)
-
-	mov	Demag_Detected_Metric, #120
-
-	clr	C
-	mov	A, Demag_Detected_Metric	; Check demag metric
-	subb	A, Demag_Pwr_Off_Thresh
-	jc	wait_for_comm_wait		; Cut power if many consecutive demags. This will help retain sync during hard accelerations
-
-	All_pwmFETs_off
-	Set_Pwms_Off
-
-wait_for_comm_wait:
-	jnb Flags0.T3_PENDING, ($+5)			
-	ajmp	wait_for_comm_wait
-
-	; Setup next wait time
-	mov	TMR3RLL, Wt_Zc_Scan_Start_L
-	mov	TMR3RLH, Wt_Zc_Scan_Start_H
-	setb	Flags0.T3_PENDING
-	orl	EIE1, #80h			; Enable timer 3 interrupts
-	ret
+;calc_new_wait_times_exit:
+;	ljmp	wait_advance_timing
+;
+;
+;; Fast calculation (Comm_Period4x_H less than 2)
+;calc_next_comm_timing_fast:
+;	; Calculate new commutation time
+;	mov	Temp3, Comm_Period4x_L	; Comm_Period4x(-l-h) holds the time of 4 commutations
+;	mov	Temp4, Comm_Period4x_H
+;	mov	A, Temp4				; Divide by 2 4 times
+;	swap	A
+;	mov	Temp7, A
+;	mov	A, Temp3
+;	swap A
+;	anl	A, #0Fh
+;	orl	A, Temp7
+;	mov	Temp5, A
+;	clr	C
+;	mov	A, Temp3				; Subtract a fraction
+;	subb	A, Temp5
+;	mov	Temp3, A
+;	mov	A, Temp4
+;	subb	A, #0
+;	mov	Temp4, A
+;	clr	C
+;	mov	A, Temp1
+;	rrc	A					; Divide by 2 2 times
+;	clr	C
+;	rrc	A
+;	mov	Temp1, A
+;	mov	A, Temp3				; Add the divided new time
+;	add	A, Temp1
+;	mov	Temp3, A
+;	mov	A, Temp4
+;	addc	A, #0
+;	mov	Temp4, A
+;	mov	Comm_Period4x_L, Temp3	; Store Comm_Period4x_X
+;	mov	Comm_Period4x_H, Temp4
+;	clr	C
+;	mov	A, Temp4				; If erpm below 156k - go to normal case
+;	subb	A, #2
+;	jc	($+4)
+;
+;	clr	Flags1.HIGH_RPM 		; Clear high rpm bit
+;
+;	; Set timing reduction
+;	mov	Temp1, #2
+;	mov	A, Temp4				; Divide by 2 4 times
+;	swap	A
+;	mov	Temp7, A
+;	mov	Temp4, #0
+;	mov	A, Temp3
+;	swap A
+;	anl	A, #0Fh
+;	orl	A, Temp7
+;	mov	Temp3, A
+;	clr	C
+;	mov	A, Temp3
+;	subb	A, Temp1
+;	mov	Temp3, A
+;	jc	load_min_time_fast		; Check that result is still positive
+;
+;	clr	C
+;	subb	A, #1
+;	jnc	calc_new_wait_times_fast_done	; Check that result is still above minumum
+;
+;load_min_time_fast:
+;	mov	Temp3, #1
+;
+;calc_new_wait_times_fast_done:
+;	mov	Temp1, #Pgm_Comm_Timing	; Load timing setting
+;	mov	A, @Temp1
+;	mov	Temp8, A				; Store in Temp8
+;
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Wait advance timing routine
+;;
+;; No assumptions
+;; NOTE: Be VERY careful if using temp registers. They are passed over this routine
+;;
+;; Waits for the advance timing to elapse and sets up the next zero cross wait
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;wait_advance_timing:
+;	jnb	Flags0.T3_PENDING, ($+5)
+;	ajmp	wait_advance_timing
+;
+;	; Setup next wait time
+;	mov	TMR3RLL, Wt_ZC_Tout_Start_L
+;	mov	TMR3RLH, Wt_ZC_Tout_Start_H
+;	setb	Flags0.T3_PENDING
+;	orl	EIE1, #80h	; Enable timer 3 interrupts
+;
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Calculate new wait times routine
+;;
+;; No assumptions
+;;
+;; Calculates new wait times
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;calc_new_wait_times:
+;	clr	C
+;	clr	A
+;	subb	A, Temp3				; Negate
+;	mov	Temp1, A
+;	clr	A
+;	subb	A, Temp4
+;	mov	Temp2, A
+;IF MCU_48MHZ >= 1
+;	clr	C
+;	mov	A, Temp1				; Multiply by 2
+;	rlc	A
+;	mov	Temp1, A
+;	mov	A, Temp2
+;	rlc	A
+;	mov	Temp2, A
+;ENDIF
+;	jnb	Flags1.HIGH_RPM, ($+6)	; Branch if high rpm
+;	ljmp	calc_new_wait_times_fast
+;
+;	mov	A, Temp1				; Copy values
+;	mov	Temp3, A
+;	mov	A, Temp2
+;	mov	Temp4, A
+;
+;	setb	C					; Negative numbers - set carry
+;	mov	A, Temp2
+;	rrc	A					; Divide by 2
+;	mov	Temp6, A
+;	mov	A, Temp1
+;	rrc	A
+;	mov	Temp5, A
+;
+;	mov	Wt_Zc_Tout_Start_L, Temp1; Set 15deg time for zero cross scan timeout
+;	mov	Wt_Zc_Tout_Start_H, Temp2
+;
+;	clr	C
+;	mov	A, Temp8				; (Temp8 has Pgm_Comm_Timing)
+;	subb	A, #3				; Is timing normal?
+;	jz	store_times_decrease	; Yes - branch
+;
+;	mov	A, Temp8
+;	jb	ACC.0, adjust_timing_two_steps	; If an odd number - branch
+;
+;    ; 22.5º
+;	mov	A, Temp1				; Add 7.5deg and store in Temp1/2
+;	add	A, Temp5
+;	mov	Temp1, A
+;	mov	A, Temp2
+;	addc	A, Temp6
+;	mov	Temp2, A
+;
+;    ; 7.5º
+;	mov	A, Temp5				; Store 7.5deg in Temp3/4
+;	mov	Temp3, A
+;	mov	A, Temp6
+;	mov	Temp4, A
+;	jmp	store_times_up_or_down
+;
+;adjust_timing_two_steps:
+;	mov	A, Temp1				; Add 15deg and store in Temp1/2
+;	add	A, Temp1
+;	mov	Temp1, A
+;	mov	A, Temp2
+;	addc	A, Temp2
+;	mov	Temp2, A
+;	clr	C
+;	mov	A, Temp1
+;	add	A, #1
+;	mov	Temp1, A
+;	mov	A, Temp2
+;	addc	A, #0
+;	mov	Temp2, A
+;	mov	Temp3, #-1				; Store minimum time in Temp3/4
+;	mov	Temp4, #0FFh
+;
+;store_times_up_or_down:
+;	clr	C
+;	mov	A, Temp8
+;	subb	A, #3					; Is timing higher than normal?
+;	jc	store_times_decrease		; No - branch
+;
+;store_times_increase:
+;	mov	Wt_Comm_Start_L, Temp3		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
+;	mov	Wt_Comm_Start_H, Temp4
+;	mov	Wt_Adv_Start_L, Temp1		; New commutation advance time (~15deg nominal)
+;	mov	Wt_Adv_Start_H, Temp2
+;	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
+;	mov	Wt_Zc_Scan_Start_H, Temp6
+;	ljmp	wait_before_zc_scan
+;
+;store_times_decrease:
+;	mov	Wt_Comm_Start_L, Temp1		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
+;	mov	Wt_Comm_Start_H, Temp2
+;	mov	Wt_Adv_Start_L, Temp3		; New commutation advance time (~15deg nominal)
+;	mov	Wt_Adv_Start_H, Temp4
+;	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
+;	mov	Wt_Zc_Scan_Start_H, Temp6
+;	jnb	Flags1.STARTUP_PHASE, store_times_exit
+;
+;	mov	Wt_Comm_Start_L, #0F0h		; Set very short delays for all but advance time during startup, in order to widen zero cross capture range
+;	mov	Wt_Comm_Start_H, #0FFh
+;	mov	Wt_Zc_Scan_Start_L, #0F0h
+;	mov	Wt_Zc_Scan_Start_H, #0FFh
+;	mov	Wt_Zc_Tout_Start_L, #0F0h
+;	mov	Wt_Zc_Tout_Start_H, #0FFh
+;
+;store_times_exit:
+;	ljmp	wait_before_zc_scan
+;
+;
+;calc_new_wait_times_fast:
+;	mov	A, Temp1				; Copy values
+;	mov	Temp3, A
+;	setb	C					; Negative numbers - set carry
+;	mov	A, Temp1				; Divide by 2
+;	rrc	A
+;	mov	Temp5, A
+;	mov	Wt_Zc_Tout_Start_L, Temp1; Set 15deg time for zero cross scan timeout
+;	clr	C
+;	mov	A, Temp8				; (Temp8 has Pgm_Comm_Timing)
+;	subb	A, #3				; Is timing normal?
+;	jz	store_times_decrease_fast; Yes - branch
+;
+;	mov	A, Temp8
+;	jb	ACC.0, adjust_timing_two_steps_fast	; If an odd number - branch
+;
+;	mov	A, Temp1				; Add 7.5deg and store in Temp1
+;	add	A, Temp5
+;	mov	Temp1, A
+;	mov	A, Temp5				; Store 7.5deg in Temp3
+;	mov	Temp3, A
+;	ajmp	store_times_up_or_down_fast
+;
+;adjust_timing_two_steps_fast:
+;	mov	A, Temp1				; Add 15deg and store in Temp1
+;	add	A, Temp1
+;	add	A, #1
+;	mov	Temp1, A
+;	mov	Temp3, #-1			; Store minimum time in Temp3
+;
+;store_times_up_or_down_fast:
+;	clr	C
+;	mov	A, Temp8
+;	subb	A, #3				; Is timing higher than normal?
+;	jc	store_times_decrease_fast; No - branch
+;
+;store_times_increase_fast:
+;	mov	Wt_Comm_Start_L, Temp3		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
+;	mov	Wt_Adv_Start_L, Temp1		; New commutation advance time (~15deg nominal)
+;	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
+;	ljmp	wait_before_zc_scan
+;
+;store_times_decrease_fast:
+;	mov	Wt_Comm_Start_L, Temp1		; Now commutation time (~60deg) divided by 4 (~15deg nominal)
+;	mov	Wt_Adv_Start_L, Temp3		; New commutation advance time (~15deg nominal)
+;	mov	Wt_Zc_Scan_Start_L, Temp5	; Use this value for zero cross scan delay (7.5deg)
+;
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Wait before zero cross scan routine
+;;
+;; No assumptions
+;;
+;; Waits for the zero cross scan wait time to elapse
+;; Also sets up timer 3 for the zero cross scan timeout time
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;wait_before_zc_scan:
+;	jnb	Flags0.T3_PENDING, ($+5)
+;	ajmp	wait_before_zc_scan
+;
+;	mov	Startup_Zc_Timeout_Cntd, #2
+;setup_zc_scan_timeout:
+;	setb	Flags0.T3_PENDING
+;	orl	EIE1, #80h			; Enable timer 3 interrupts
+;	mov	A, Flags1
+;	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
+;	jz	wait_before_zc_scan_exit
+;
+;	mov	Temp1, Comm_Period4x_L	; Set long timeout when starting
+;	mov	Temp2, Comm_Period4x_H
+;	clr	C
+;	mov	A, Temp2
+;	rrc	A
+;	mov	Temp2, A
+;	mov	A, Temp1
+;	rrc	A
+;	mov	Temp1, A
+;IF MCU_48MHZ == 0
+;	clr	C
+;	mov	A, Temp2
+;	rrc	A
+;	mov	Temp2, A
+;	mov	A, Temp1
+;	rrc	A
+;	mov	Temp1, A
+;ENDIF
+;	jnb	Flags1.STARTUP_PHASE, setup_zc_scan_timeout_startup_done
+;
+;	mov	A, Temp2
+;	add	A, #40h				; Increase timeout somewhat to avoid false wind up
+;	mov	Temp2, A
+;
+;setup_zc_scan_timeout_startup_done:
+;	clr	IE_EA
+;	anl	EIE1, #7Fh			; Disable timer 3 interrupts
+;	mov	TMR3CN0, #00h			; Timer 3 disabled and interrupt flag cleared
+;	clr	C
+;	clr	A
+;	subb	A, Temp1				; Set timeout
+;	mov	TMR3L, A
+;	clr	A
+;	subb	A, Temp2
+;	mov	TMR3H, A
+;	mov	TMR3CN0, #04h			; Timer 3 enabled and interrupt flag cleared
+;	setb	Flags0.T3_PENDING
+;	orl	EIE1, #80h			; Enable timer 3 interrupts
+;	setb	IE_EA
+;
+;wait_before_zc_scan_exit:
+;	ret
+;
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Wait for comparator to go low/high routines
+;;
+;; No assumptions
+;;
+;; Waits for the zero cross scan wait time to elapse
+;; Then scans for comparator going low/high
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;wait_for_comp_out_low:
+;	setb	Flags0.DEMAG_DETECTED		; Set demag detected flag as default
+;	mov	Comparator_Read_Cnt, #0		; Reset number of comparator reads
+;	mov	Bit_Access, #00h			; Desired comparator output
+;	jnb	Flags1.DIR_CHANGE_BRAKE, ($+6)
+;	mov	Bit_Access, #40h
+;	ajmp	wait_for_comp_out_start
+;
+;wait_for_comp_out_high:
+;	setb	Flags0.DEMAG_DETECTED		; Set demag detected flag as default
+;	mov	Comparator_Read_Cnt, #0		; Reset number of comparator reads
+;	mov	Bit_Access, #40h			; Desired comparator output
+;	jnb	Flags1.DIR_CHANGE_BRAKE, ($+6)
+;	mov	Bit_Access, #00h
+;
+;wait_for_comp_out_start:
+;	; Set number of comparator readings
+;	mov	Temp1, #1					; Number of OK readings required
+;	mov	Temp2, #1					; Max number of readings required
+;	jb	Flags1.HIGH_RPM, comp_scale_samples	; Branch if high rpm
+;
+;	mov	A, Flags1					; Clear demag detected flag if start phases
+;	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
+;	jz	($+4)
+;
+;	clr	Flags0.DEMAG_DETECTED
+;
+;	mov	Temp2, #20 				; Too low value (~<15) causes rough running at pwm harmonics. Too high a value (~>35) causes the RCT4215 630 to run rough on full throttle
+;	mov 	A, Comm_Period4x_H			; Set number of readings higher for lower speeds
+;	clr	C
+;	rrc	A
+;	jnz	($+3)
+;	inc	A
+;	mov	Temp1, A
+;	clr	C
+;	subb	A, #20
+;	jc	($+4)
+;
+;	mov	Temp1, #20
+;
+;	jnb	Flags1.STARTUP_PHASE, comp_scale_samples
+;
+;	mov	Temp1, #27				; Set many samples during startup, approximately one pwm period
+;	mov	Temp2, #27
+;
+;comp_scale_samples:
+;IF MCU_48MHZ >= 1
+;	clr	C
+;	mov	A, Temp1
+;	rlc	A
+;	mov	Temp1, A
+;	clr	C
+;	mov	A, Temp2
+;	rlc	A
+;	mov	Temp2, A
+;ENDIF
+;comp_check_timeout:
+;	jb	Flags0.T3_PENDING, comp_check_timeout_not_timed_out		; Has zero cross scan timeout elapsed?
+;
+;	mov	A, Comparator_Read_Cnt			; Check that comparator has been read
+;	jz	comp_check_timeout_not_timed_out	; If not read - branch
+;
+;	jnb	Flags1.STARTUP_PHASE, comp_check_timeout_timeout_extended	; Extend timeout during startup
+;
+;	djnz	Startup_Zc_Timeout_Cntd, comp_check_timeout_extend_timeout
+;
+;comp_check_timeout_timeout_extended:
+;	setb	Flags0.COMP_TIMED_OUT
+;	ajmp	setup_comm_wait
+;
+;comp_check_timeout_extend_timeout:
+;	call	setup_zc_scan_timeout
+;comp_check_timeout_not_timed_out:
+;	inc	Comparator_Read_Cnt			; Increment comparator read count
+;	Read_Comp_Out					; Read comparator output
+;	anl	A, #40h
+;	cjne	A, Bit_Access, comp_read_wrong
+;	ajmp	comp_read_ok
+;
+;comp_read_wrong:
+;	jnb	Flags1.STARTUP_PHASE, comp_read_wrong_not_startup
+;
+;	inc	Temp1					; Increment number of OK readings required
+;	clr	C
+;	mov	A, Temp1
+;	subb	A, Temp2					; If above initial requirement - do not increment further
+;	jc	($+3)
+;	dec	Temp1
+;
+;	ajmp	comp_check_timeout			; Continue to look for good ones
+;
+;comp_read_wrong_not_startup:
+;	jb	Flags0.DEMAG_DETECTED, comp_read_wrong_extend_timeout
+;
+;	inc	Temp1					; Increment number of OK readings required
+;	clr	C
+;	mov	A, Temp1
+;	subb	A, Temp2
+;	jc	($+4)
+;	ajmp	wait_for_comp_out_start		; If above initial requirement - go back and restart
+;
+;	ajmp	comp_check_timeout			; Otherwise - take another reading
+;
+;comp_read_wrong_extend_timeout:
+;	clr	Flags0.DEMAG_DETECTED		; Clear demag detected flag
+;	anl	EIE1, #7Fh				; Disable timer 3 interrupts
+;	mov	TMR3CN0, #00h				; Timer 3 disabled and interrupt flag cleared
+;	jnb	Flags1.HIGH_RPM, comp_read_wrong_low_rpm	; Branch if not high rpm
+;
+;	mov	TMR3L, #00h				; Set timeout to ~1ms
+;IF MCU_48MHZ >= 1
+;	mov	TMR3H, #0F0h
+;ELSE
+;	mov	TMR3H, #0F8h
+;ENDIF
+;comp_read_wrong_timeout_set:
+;	mov	TMR3CN0, #04h				; Timer 3 enabled and interrupt flag cleared
+;	setb	Flags0.T3_PENDING
+;	orl	EIE1, #80h				; Enable timer 3 interrupts
+;	ljmp	wait_for_comp_out_start		; If comparator output is not correct - go back and restart
+;
+;comp_read_wrong_low_rpm:
+;	mov	A, Comm_Period4x_H			; Set timeout to ~4x comm period 4x value
+;	mov	Temp7, #0FFh				; Default to long
+;IF MCU_48MHZ >= 1
+;	clr	C
+;	rlc	A
+;	jc	comp_read_wrong_load_timeout
+;
+;ENDIF
+;	clr	C
+;	rlc	A
+;	jc	comp_read_wrong_load_timeout
+;
+;	clr	C
+;	rlc	A
+;	jc	comp_read_wrong_load_timeout
+;
+;	mov	Temp7, A
+;
+;comp_read_wrong_load_timeout:
+;	clr	C
+;	clr	A
+;	subb	A, Temp7
+;	mov	TMR3L, #0
+;	mov	TMR3H, A
+;	ajmp	comp_read_wrong_timeout_set
+;
+;comp_read_ok:
+;	clr	C
+;	mov	A, Startup_Cnt				; Force a timeout for the first commutation
+;	subb	A, #1
+;	jnc	($+4)
+;	ajmp	wait_for_comp_out_start
+;
+;	jnb	Flags0.DEMAG_DETECTED, ($+5)	; Do not accept correct comparator output if it is demag
+;	ajmp	wait_for_comp_out_start
+;
+;	djnz	Temp1, comp_read_ok_jmp		; Decrement readings counter - repeat comparator reading if not zero
+;	ajmp	($+4)
+;
+;comp_read_ok_jmp:
+;	ajmp	comp_check_timeout
+;
+;	clr	Flags0.COMP_TIMED_OUT
+;
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Setup commutation timing routine
+;;
+;; No assumptions
+;;
+;; Sets up and starts wait from commutation to zero cross
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;setup_comm_wait:
+;	clr	IE_EA
+;	anl	EIE1, #7Fh		; Disable timer 3 interrupts
+;	mov	TMR3CN0, #00h		; Timer 3 disabled and interrupt flag cleared
+;	mov	TMR3L, Wt_Comm_Start_L
+;	mov	TMR3H, Wt_Comm_Start_H
+;	mov	TMR3CN0, #04h		; Timer 3 enabled and interrupt flag cleared
+;	; Setup next wait time
+;	mov	TMR3RLL, Wt_Adv_Start_L
+;	mov	TMR3RLH, Wt_Adv_Start_H
+;	setb	Flags0.T3_PENDING
+;	orl	EIE1, #80h		; Enable timer 3 interrupts
+;	setb	IE_EA			; Enable interrupts again
+;
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Evaluate comparator integrity
+;;
+;; No assumptions
+;;
+;; Checks comparator signal behaviour versus expected behaviour
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;evaluate_comparator_integrity:
+;	mov	A, Flags1
+;	anl	A, #((1 SHL STARTUP_PHASE)+(1 SHL INITIAL_RUN_PHASE))
+;	jz	eval_comp_check_timeout
+;
+;	jb	Flags1.INITIAL_RUN_PHASE, ($+5)	; Do not increment beyond startup phase
+;	inc	Startup_Cnt					; Increment counter
+;	jmp	eval_comp_exit
+;
+;eval_comp_check_timeout:
+;	jnb	Flags0.COMP_TIMED_OUT, eval_comp_exit	; Has timeout elapsed?
+;	jb	Flags1.DIR_CHANGE_BRAKE, eval_comp_exit	; Do not exit run mode if it is braking
+;	jb	Flags0.DEMAG_DETECTED, eval_comp_exit	; Do not exit run mode if it is a demag situation
+;	dec	SP								; Routine exit without "ret" command
+;	dec	SP
+;	ljmp	run_to_wait_for_power_on_fail			; Yes - exit run mode
+;
+;eval_comp_exit:
+;	ret
+;
+;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;;
+;; Wait for commutation routine
+;;
+;; No assumptions
+;;
+;; Waits from zero cross to commutation
+;;
+;;**** **** **** **** **** **** **** **** **** **** **** **** ****
+;wait_for_comm:
+;	; Update demag metric
+;	mov	Temp1, #0
+;	jnb	Flags0.DEMAG_DETECTED, ($+5)
+;
+;	mov	Temp1, #1
+;
+;	mov	A, Demag_Detected_Metric	; Sliding average of 8, 256 when demag and 0 when not. Limited to minimum 120
+;	mov	B, #7
+;	mul	AB					; Multiply by 7
+;	mov	Temp2, A
+;	mov	A, B					; Add new value for current demag status
+;	add	A, Temp1
+;	mov	B, A
+;	mov	A, Temp2
+;	mov	C, B.0				; Divide by 8
+;	rrc	A
+;	mov	C, B.1
+;	rrc	A
+;	mov	C, B.2
+;	rrc	A
+;	mov	Demag_Detected_Metric, A
+;	clr	C
+;	subb	A, #120				; Limit to minimum 120
+;	jnc	($+5)
+;
+;	mov	Demag_Detected_Metric, #120
+;
+;	clr	C
+;	mov	A, Demag_Detected_Metric	; Check demag metric
+;	subb	A, Demag_Pwr_Off_Thresh
+;	jc	wait_for_comm_wait		; Cut power if many consecutive demags. This will help retain sync during hard accelerations
+;
+;	All_pwmFETs_off
+;	Set_Pwms_Off
+;
+;wait_for_comm_wait:
+;	jnb Flags0.T3_PENDING, ($+5)
+;	ajmp	wait_for_comm_wait
+;
+;	; Setup next wait time
+;	mov	TMR3RLL, Wt_Zc_Scan_Start_L
+;	mov	TMR3RLH, Wt_Zc_Scan_Start_H
+;	setb	Flags0.T3_PENDING
+;	orl	EIE1, #80h			; Enable timer 3 interrupts
+;	ret
 
 
 ;**** **** **** **** **** **** **** **** **** **** **** **** ****
@@ -4296,23 +4303,30 @@ read_initial_temp:
 IF MCU_48MHZ >= 1
 	Set_MCU_Clk_48MHz
 ENDIF
-	jnb	Flags3.PGM_BIDIR, init_start_bidir_done	; Check if bidirectional operation
-
-	clr	Flags3.PGM_DIR_REV			; Set spinning direction. Default fwd
-	jnb	Flags2.RCP_DIR_REV, ($+5)	; Check force direction
-	setb	Flags3.PGM_DIR_REV			; Set spinning direction
+;	jnb	Flags3.PGM_BIDIR, init_start_bidir_done	; Check if bidirectional operation
+;
+;	clr	Flags3.PGM_DIR_REV			; Set spinning direction. Default fwd
+;	jnb	Flags2.RCP_DIR_REV, ($+5)	; Check force direction
+;	setb	Flags3.PGM_DIR_REV			; Set spinning direction
 
 init_start_bidir_done:
-	setb	Flags1.STARTUP_PHASE		; Set startup phase flag
-	mov	Startup_Cnt, #0			; Reset counter
-	call comm5comm6				; Initialize commutation
-	call comm6comm1				
-	call initialize_timing			; Initialize timing
-	call	calc_next_comm_timing		; Set virtual commutation point
-	call initialize_timing			; Initialize timing
-	call	calc_next_comm_timing		
-	call	initialize_timing			; Initialize timing
+;	setb	Flags1.STARTUP_PHASE		; Set startup phase flag
+;	mov	Startup_Cnt, #0			; Reset counter
+;	call comm5comm6				; Initialize commutation
+;	call comm6comm1
+;	call initialize_timing			; Initialize timing
+;	call	calc_next_comm_timing		; Set virtual commutation point
+;	call initialize_timing			; Initialize timing
+;	call	calc_next_comm_timing
+;	call	initialize_timing			; Initialize timing
 
+    ; If no bidirectional operation force first direction reconfiguration
+    jnb Flags3.PGM_BIDIR, run1_dir_update
+
+    ; Force first direction reconfiguration
+    mov C, Flags3.PGM_DIR_REV
+    cpl C
+    mov Flags3.RCP_DIR_REV, C
 
 
 ;**** **** **** **** **** **** **** **** **** **** **** **** ****
@@ -4324,108 +4338,137 @@ init_start_bidir_done:
 ; Run 1 = B(p-on) + C(n-pwm) - comparator A evaluated
 ; Out_cA changes from low to high
 run1:
-	call wait_for_comp_out_high	; Wait for high
-;		setup_comm_wait		; Setup wait time from zero cross to commutation
-;		evaluate_comparator_integrity	; Check whether comparator reading has been normal
-	call wait_for_comm			; Wait from zero cross to commutation
-	call comm1comm2			; Commutate
-	call calc_next_comm_timing	; Calculate next timing and wait advance timing wait
-;		wait_advance_timing		; Wait advance timing and start zero cross wait
-;		calc_new_wait_times
-;		wait_before_zc_scan		; Wait zero cross wait and start zero cross timeout
+    jnb Flags3.PGM_BIDIR, run1_dir_updated
 
-; Run 2 = A(p-on) + C(n-pwm) - comparator B evaluated
-; Out_cB changes from high to low
-run2:
-	call wait_for_comp_out_low
-;		setup_comm_wait
-;		evaluate_comparator_integrity
-	jb	Flags1.HIGH_RPM, ($+6)	; Skip if high rpm
-	lcall set_pwm_limit_low_rpm
-	jnb	Flags1.HIGH_RPM, ($+6)	; Do if high rpm
-	lcall set_pwm_limit_high_rpm
-	call wait_for_comm
-	call comm2comm3
-	call calc_next_comm_timing
-;		wait_advance_timing
-;		calc_new_wait_times
-;		wait_before_zc_scan
+    ; Check that rcpulse dir and programmed dir are the same
+    mov C, Flags2.RCP_DIR_REV
+    anl C, Flags3.PGM_DIR_REV
+    jc run1_dir_updated
 
-; Run 3 = A(p-on) + B(n-pwm) - comparator C evaluated
-; Out_cC changes from low to high
-run3:
-	call wait_for_comp_out_high
-;		setup_comm_wait
-;		evaluate_comparator_integrity
-	call wait_for_comm
-	call comm3comm4
-	call calc_next_comm_timing
-;		wait_advance_timing
-;		calc_new_wait_times
-;		wait_before_zc_scan
+    ; Update programmed flag
+    mov C, Flags2.RCP_DIR_REV
+    mov Flags3.PGM_DIR_REV, C
 
-; Run 4 = C(p-on) + B(n-pwm) - comparator A evaluated
-; Out_cA changes from high to low
-run4:
-	call wait_for_comp_out_low
-;		setup_comm_wait
-;		evaluate_comparator_integrity
-	call wait_for_comm
-	call comm4comm5
-	call calc_next_comm_timing
-;		wait_advance_timing
-;		calc_new_wait_times
-;		wait_before_zc_scan
+run1_dir_update:
+    jb  Flags2.RCP_DIR_REV, run1_dir_reverse
 
-; Run 5 = C(p-on) + A(n-pwm) - comparator B evaluated
-; Out_cB changes from low to high
-run5:
-	call wait_for_comp_out_high
-;		setup_comm_wait
-;		evaluate_comparator_integrity
-	call wait_for_comm
-	call comm5comm6
-	call calc_next_comm_timing
-;		wait_advance_timing
-;		calc_new_wait_times
-;		wait_before_zc_scan
+run1_dir_forward:
+    clr IE_EA               ; Disable all interrupts
+    BcomFET_on
+    Set_Pwm_A
+    setb IE_EA
+    jmp run1_dir_updated
 
-; Run 6 = B(p-on) + A(n-pwm) - comparator C evaluated
-; Out_cC changes from high to low
-run6:
-	call start_adc_conversion
-	call wait_for_comp_out_low
-;		setup_comm_wait
-;		evaluate_comparator_integrity
-	call wait_for_comm
-	call comm6comm1
-	call check_temp_voltage_and_limit_power
-	call calc_next_comm_timing
-;		wait_advance_timing
-;		calc_new_wait_times
-;		wait_before_zc_scan
+run1_dir_reverse:
+    clr IE_EA               ; Disable all interrupts
+    AcomFET_on
+    Set_Pwm_B
+    setb IE_EA
 
-	; Check if it is direct startup
-	jnb	Flags1.STARTUP_PHASE, normal_run_checks
+run1_dir_updated:
 
-	; Set spoolup power variables
-	mov	Pwm_Limit, Pwm_Limit_Beg		; Set initial max power
-	; Check startup counter
-	mov	Temp2, #24				; Set nominal startup parameters
-	mov	Temp3, #12
-	clr	C
-	mov	A, Startup_Cnt				; Load counter
-	subb	A, Temp2					; Is counter above requirement?
-	jc	direct_start_check_rcp		; No - proceed
-
-	clr	Flags1.STARTUP_PHASE		; Clear startup phase flag
-	setb	Flags1.INITIAL_RUN_PHASE		; Set initial run phase flag
-	mov	Initial_Run_Rot_Cntd, Temp3	; Set initial run rotation count
-	mov	Pwm_Limit, Pwm_Limit_Beg
-	mov	Pwm_Limit_By_Rpm, Pwm_Limit_Beg
-	jmp	normal_run_checks
-
-direct_start_check_rcp:
+;	call wait_for_comp_out_high	; Wait for high
+;;		setup_comm_wait		; Setup wait time from zero cross to commutation
+;;		evaluate_comparator_integrity	; Check whether comparator reading has been normal
+;	call wait_for_comm			; Wait from zero cross to commutation
+;	call comm1comm2			; Commutate
+;	call calc_next_comm_timing	; Calculate next timing and wait advance timing wait
+;;		wait_advance_timing		; Wait advance timing and start zero cross wait
+;;		calc_new_wait_times
+;;		wait_before_zc_scan		; Wait zero cross wait and start zero cross timeout
+;
+;; Run 2 = A(p-on) + C(n-pwm) - comparator B evaluated
+;; Out_cB changes from high to low
+;run2:
+;	call wait_for_comp_out_low
+;;		setup_comm_wait
+;;		evaluate_comparator_integrity
+;	jb	Flags1.HIGH_RPM, ($+6)	; Skip if high rpm
+;	lcall set_pwm_limit_low_rpm
+;	jnb	Flags1.HIGH_RPM, ($+6)	; Do if high rpm
+;	lcall set_pwm_limit_high_rpm
+;	call wait_for_comm
+;	call comm2comm3
+;	call calc_next_comm_timing
+;;		wait_advance_timing
+;;		calc_new_wait_times
+;;		wait_before_zc_scan
+;
+;; Run 3 = A(p-on) + B(n-pwm) - comparator C evaluated
+;; Out_cC changes from low to high
+;run3:
+;	call wait_for_comp_out_high
+;;		setup_comm_wait
+;;		evaluate_comparator_integrity
+;	call wait_for_comm
+;	call comm3comm4
+;	call calc_next_comm_timing
+;;		wait_advance_timing
+;;		calc_new_wait_times
+;;		wait_before_zc_scan
+;
+;; Run 4 = C(p-on) + B(n-pwm) - comparator A evaluated
+;; Out_cA changes from high to low
+;run4:
+;	call wait_for_comp_out_low
+;;		setup_comm_wait
+;;		evaluate_comparator_integrity
+;	call wait_for_comm
+;	call comm4comm5
+;	call calc_next_comm_timing
+;;		wait_advance_timing
+;;		calc_new_wait_times
+;;		wait_before_zc_scan
+;
+;; Run 5 = C(p-on) + A(n-pwm) - comparator B evaluated
+;; Out_cB changes from low to high
+;run5:
+;	call wait_for_comp_out_high
+;;		setup_comm_wait
+;;		evaluate_comparator_integrity
+;	call wait_for_comm
+;	call comm5comm6
+;	call calc_next_comm_timing
+;;		wait_advance_timing
+;;		calc_new_wait_times
+;;		wait_before_zc_scan
+;
+;; Run 6 = B(p-on) + A(n-pwm) - comparator C evaluated
+;; Out_cC changes from high to low
+;run6:
+;	call start_adc_conversion
+;	call wait_for_comp_out_low
+;;		setup_comm_wait
+;;		evaluate_comparator_integrity
+;	call wait_for_comm
+;	call comm6comm1
+;	call check_temp_voltage_and_limit_power
+;	call calc_next_comm_timing
+;;		wait_advance_timing
+;;		calc_new_wait_times
+;;		wait_before_zc_scan
+;
+;	; Check if it is direct startup
+;	jnb	Flags1.STARTUP_PHASE, normal_run_checks
+;
+;	; Set spoolup power variables
+;	mov	Pwm_Limit, Pwm_Limit_Beg		; Set initial max power
+;	; Check startup counter
+;	mov	Temp2, #24				; Set nominal startup parameters
+;	mov	Temp3, #12
+;	clr	C
+;	mov	A, Startup_Cnt				; Load counter
+;	subb	A, Temp2					; Is counter above requirement?
+;	jc	direct_start_check_rcp		; No - proceed
+;
+;	clr	Flags1.STARTUP_PHASE		; Clear startup phase flag
+;	setb	Flags1.INITIAL_RUN_PHASE		; Set initial run phase flag
+;	mov	Initial_Run_Rot_Cntd, Temp3	; Set initial run rotation count
+;	mov	Pwm_Limit, Pwm_Limit_Beg
+;	mov	Pwm_Limit_By_Rpm, Pwm_Limit_Beg
+;	jmp	normal_run_checks
+;
+;direct_start_check_rcp:
 	clr	C
 	mov	A, New_Rcp				; Load new pulse value
 	subb	A, #1					; Check if pulse is below stop value
@@ -4436,109 +4479,109 @@ direct_start_check_rcp:
 	jmp	run_to_wait_for_power_on
 
 
-normal_run_checks:
-	; Check if it is initial run phase
-	jnb	Flags1.INITIAL_RUN_PHASE, initial_run_phase_done	; If not initial run phase - branch
-	jb	Flags1.DIR_CHANGE_BRAKE, initial_run_phase_done	; If a direction change - branch
-
-	; Decrement startup rotaton count
-	mov	A, Initial_Run_Rot_Cntd
-	dec	A
-	; Check number of initial rotations
-	jnz 	initial_run_check_startup_rot	; Branch if counter is not zero
-
-	clr	Flags1.INITIAL_RUN_PHASE		; Clear initial run phase flag
-	setb	Flags1.MOTOR_STARTED		; Set motor started
-	jmp run1						; Continue with normal run
-
-initial_run_check_startup_rot:
-	mov	Initial_Run_Rot_Cntd, A		; Not zero - store counter
-
-	jb	Flags3.PGM_BIDIR, initial_run_continue_run	; Check if bidirectional operation
-
-	clr	C
-	mov	A, New_Rcp				; Load new pulse value
-	subb	A, #1					; Check if pulse is below stop value
-	jc	($+5)
-
-initial_run_continue_run:
-	ljmp	run1						; Continue to run 
-
-	jmp	run_to_wait_for_power_on
-
-initial_run_phase_done:
-	; Reset stall count
-	mov	Stall_Cnt, #0
-	; Exit run loop after a given time
-	jb	Flags3.PGM_BIDIR, run6_check_timeout	; Check if bidirectional operation
-
-	mov	Temp1, #250
-	mov	Temp2, #Pgm_Brake_On_Stop
-	mov	A, @Temp2
-	jz	($+4)
-
-	mov	Temp1, #3					; About 100ms before stopping when brake is set
-
-	clr	C
-	mov	A, Rcp_Stop_Cnt			; Load stop RC pulse counter low byte value
-	subb	A, Temp1					; Is number of stop RC pulses above limit?
-	jnc	run_to_wait_for_power_on		; Yes, go back to wait for poweron
-
-run6_check_timeout:
-	mov	A, Rcp_Timeout_Cntd			; Load RC pulse timeout counter value
-	jz	run_to_wait_for_power_on		; If it is zero - go back to wait for poweron
-
-run6_check_dir:
-	jnb	Flags3.PGM_BIDIR, run6_check_speed		; Check if bidirectional operation
-
-	jb	Flags3.PGM_DIR_REV, run6_check_dir_rev		; Check if actual rotation direction
-	jb	Flags2.RCP_DIR_REV, run6_check_dir_change	; Matches force direction
-	jmp	run6_check_speed
-
-run6_check_dir_rev:
-	jnb	Flags2.RCP_DIR_REV, run6_check_dir_change
-	jmp	run6_check_speed
-
-run6_check_dir_change:
-	jb	Flags1.DIR_CHANGE_BRAKE, run6_check_speed
-
-	setb	Flags1.DIR_CHANGE_BRAKE		; Set brake flag
-	mov	Pwm_Limit, Pwm_Limit_Beg		; Set max power while braking
-	jmp	run4						; Go back to run 4, thereby changing force direction
-
-run6_check_speed:
-	mov	Temp1, #0F0h				; Default minimum speed
-	jnb	Flags1.DIR_CHANGE_BRAKE, run6_brake_done; Is it a direction change?
-
-	mov	Pwm_Limit, Pwm_Limit_Beg 	; Set max power while braking
-	mov	Temp1, #20h 				; Bidirectional braking termination speed
-
-run6_brake_done:
-	clr	C
-	mov	A, Comm_Period4x_H			; Is Comm_Period4x more than 32ms (~1220 eRPM)?
-	subb	A, Temp1
-	jnc	($+5)					; Yes - stop or turn direction 
-	ljmp	run1						; No - go back to run 1
-
-	jnb	Flags1.DIR_CHANGE_BRAKE, run_to_wait_for_power_on	; If it is not a direction change - stop
-
-	clr	Flags1.DIR_CHANGE_BRAKE		; Clear brake flag
-	clr	Flags3.PGM_DIR_REV			; Set spinning direction. Default fwd
-	jnb	Flags2.RCP_DIR_REV, ($+5)	; Check force direction
-	setb	Flags3.PGM_DIR_REV			; Set spinning direction
-	setb	Flags1.INITIAL_RUN_PHASE
-	mov	Initial_Run_Rot_Cntd, #18
-	mov	Pwm_Limit, Pwm_Limit_Beg		; Set initial max power
-	jmp	run1						; Go back to run 1 
-
-run_to_wait_for_power_on_fail:	
-	inc	Stall_Cnt					; Increment stall count
-	mov	A, New_Rcp				; Check if RCP is zero, then it is a normal stop			
-	jz	run_to_wait_for_power_on
-	ajmp	run_to_wait_for_power_on_stall_done
+;normal_run_checks:
+;	; Check if it is initial run phase
+;	jnb	Flags1.INITIAL_RUN_PHASE, initial_run_phase_done	; If not initial run phase - branch
+;	jb	Flags1.DIR_CHANGE_BRAKE, initial_run_phase_done	; If a direction change - branch
+;
+;	; Decrement startup rotaton count
+;	mov	A, Initial_Run_Rot_Cntd
+;	dec	A
+;	; Check number of initial rotations
+;	jnz 	initial_run_check_startup_rot	; Branch if counter is not zero
+;
+;	clr	Flags1.INITIAL_RUN_PHASE		; Clear initial run phase flag
+;	setb	Flags1.MOTOR_STARTED		; Set motor started
+;	jmp run1						; Continue with normal run
+;
+;initial_run_check_startup_rot:
+;	mov	Initial_Run_Rot_Cntd, A		; Not zero - store counter
+;
+;	jb	Flags3.PGM_BIDIR, initial_run_continue_run	; Check if bidirectional operation
+;
+;	clr	C
+;	mov	A, New_Rcp				; Load new pulse value
+;	subb	A, #1					; Check if pulse is below stop value
+;	jc	($+5)
+;
+;initial_run_continue_run:
+;	ljmp	run1						; Continue to run
+;
+;	jmp	run_to_wait_for_power_on
+;
+;initial_run_phase_done:
+;	; Reset stall count
+;	mov	Stall_Cnt, #0
+;	; Exit run loop after a given time
+;	jb	Flags3.PGM_BIDIR, run6_check_timeout	; Check if bidirectional operation
+;
+;	mov	Temp1, #250
+;	mov	Temp2, #Pgm_Brake_On_Stop
+;	mov	A, @Temp2
+;	jz	($+4)
+;
+;	mov	Temp1, #3					; About 100ms before stopping when brake is set
+;
+;	clr	C
+;	mov	A, Rcp_Stop_Cnt			; Load stop RC pulse counter low byte value
+;	subb	A, Temp1					; Is number of stop RC pulses above limit?
+;	jnc	run_to_wait_for_power_on		; Yes, go back to wait for poweron
+;
+;run6_check_timeout:
+;	mov	A, Rcp_Timeout_Cntd			; Load RC pulse timeout counter value
+;	jz	run_to_wait_for_power_on		; If it is zero - go back to wait for poweron
+;
+;run6_check_dir:
+;	jnb	Flags3.PGM_BIDIR, run6_check_speed		; Check if bidirectional operation
+;
+;	jb	Flags3.PGM_DIR_REV, run6_check_dir_rev		; Check if actual rotation direction
+;	jb	Flags2.RCP_DIR_REV, run6_check_dir_change	; Matches force direction
+;	jmp	run6_check_speed
+;
+;run6_check_dir_rev:
+;	jnb	Flags2.RCP_DIR_REV, run6_check_dir_change
+;	jmp	run6_check_speed
+;
+;run6_check_dir_change:
+;	jb	Flags1.DIR_CHANGE_BRAKE, run6_check_speed
+;
+;	setb	Flags1.DIR_CHANGE_BRAKE		; Set brake flag
+;	mov	Pwm_Limit, Pwm_Limit_Beg		; Set max power while braking
+;	jmp	run4						; Go back to run 4, thereby changing force direction
+;
+;run6_check_speed:
+;	mov	Temp1, #0F0h				; Default minimum speed
+;	jnb	Flags1.DIR_CHANGE_BRAKE, run6_brake_done; Is it a direction change?
+;
+;	mov	Pwm_Limit, Pwm_Limit_Beg 	; Set max power while braking
+;	mov	Temp1, #20h 				; Bidirectional braking termination speed
+;
+;run6_brake_done:
+;	clr	C
+;	mov	A, Comm_Period4x_H			; Is Comm_Period4x more than 32ms (~1220 eRPM)?
+;	subb	A, Temp1
+;	jnc	($+5)					; Yes - stop or turn direction
+;	ljmp	run1						; No - go back to run 1
+;
+;	jnb	Flags1.DIR_CHANGE_BRAKE, run_to_wait_for_power_on	; If it is not a direction change - stop
+;
+;	clr	Flags1.DIR_CHANGE_BRAKE		; Clear brake flag
+;	clr	Flags3.PGM_DIR_REV			; Set spinning direction. Default fwd
+;	jnb	Flags2.RCP_DIR_REV, ($+5)	; Check force direction
+;	setb	Flags3.PGM_DIR_REV			; Set spinning direction
+;	setb	Flags1.INITIAL_RUN_PHASE
+;	mov	Initial_Run_Rot_Cntd, #18
+;	mov	Pwm_Limit, Pwm_Limit_Beg		; Set initial max power
+;	jmp	run1						; Go back to run 1
+;
+;run_to_wait_for_power_on_fail:
+;	inc	Stall_Cnt					; Increment stall count
+;	mov	A, New_Rcp				; Check if RCP is zero, then it is a normal stop
+;	jz	run_to_wait_for_power_on
+;	ajmp	run_to_wait_for_power_on_stall_done
 
 run_to_wait_for_power_on:	
-	mov	Stall_Cnt, #0
+;	mov	Stall_Cnt, #0
 
 run_to_wait_for_power_on_stall_done:
 	clr	IE_EA
@@ -4560,12 +4603,12 @@ ENDIF
 	CcomFET_on
 
 run_to_wait_for_power_on_brake_done:
-	clr	C
-	mov	A, Stall_Cnt
-	subb	A, #4
-	jc	jmp_wait_for_power_on
-	jmp	init_no_signal
-
+;	clr	C
+;	mov	A, Stall_Cnt
+;	subb	A, #4
+;	jc	jmp_wait_for_power_on
+;	jmp	init_no_signal
+;
 jmp_wait_for_power_on:
 	jmp	wait_for_power_on			; Go back to wait for power on
 
